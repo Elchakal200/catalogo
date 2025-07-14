@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Catálogo de Productos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4">
+
+  <!-- Panel de login -->
+  <div id="loginPanel" class="max-w-md mx-auto bg-white p-6 rounded shadow">
+    <h2 class="text-2xl font-bold mb-4">Admin - Iniciar sesión</h2>
+    <input id="adminPassword" type="password" placeholder="Contraseña" class="border p-2 w-full mb-4"/>
+    <button id="loginBtn" class="bg-blue-500 text-white px-4 py-2 rounded">Entrar</button>
+  </div>
+
+  <!-- Panel de administración -->
+  <div id="adminPanel" class="hidden max-w-2xl mx-auto bg-white p-6 rounded shadow mb-6">
+    <h2 class="text-2xl font-bold mb-4">Agregar producto</h2>
+    <input id="productName" type="text" placeholder="Nombre" class="border p-2 w-full mb-2"/>
+    <input id="productPrice" type="number" placeholder="Precio" class="border p-2 w-full mb-2"/>
+    <input id="productCategory" type="text" placeholder="Categoría" class="border p-2 w-full mb-2"/>
+    <input id="productImage" type="file" accept="image/*" class="border p-2 w-full mb-4"/>
+    <button id="addProductBtn" class="bg-green-500 text-white px-4 py-2 rounded">Agregar producto</button>
+    <button id="logoutBtn" class="ml-4 bg-red-500 text-white px-4 py-2 rounded">Salir</button>
+
+    <h3 class="text-xl font-bold mt-6 mb-2">Productos actuales</h3>
+    <ul id="adminProductList" class="space-y-2"></ul>
+  </div>
+
+  <!-- Filtro de categoría -->
+  <div class="max-w-4xl mx-auto mb-4">
+    <label for="categoryFilter" class="block mb-1 font-semibold">Filtrar por categoría:</label>
+    <select id="categoryFilter" class="border p-2 w-full max-w-xs"></select>
+  </div>
+
+  <!-- Catálogo -->
+  <div id="catalog" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-w-6xl mx-auto"></div>
+
+  <!-- Carrito -->
+  <div class="max-w-xl mx-auto mt-8 bg-white p-6 rounded shadow">
+    <h2 class="text-xl font-bold mb-4">Carrito</h2>
+    <ul id="cartList" class="space-y-2"></ul>
+    <p id="cartTotal" class="font-semibold mt-2"></p>
+    <button id="sendWhatsAppBtn" class="bg-green-500 text-white px-4 py-2 rounded mt-4 hover:bg-green-600">
+      Enviar pedido por WhatsApp
+    </button>
+  </div>
+
+  <!-- Script principal -->
+  <script>
+(() => {
+  const ADMIN_PASSWORD = "admin123";
+  let products = JSON.parse(localStorage.getItem("products") || "[]");
+  let cart = [];
+
+  const loginPanel = document.getElementById("loginPanel");
+  const adminPanel = document.getElementById("adminPanel");
+  const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const addProductBtn = document.getElementById("addProductBtn");
+
+  const categoryFilter = document.getElementById("categoryFilter");
+  const catalog = document.getElementById("catalog");
+  const cartList = document.getElementById("cartList");
+  const cartTotal = document.getElementById("cartTotal");
+
+  const adminProductList = document.getElementById("adminProductList");
+
+  loginBtn.onclick = () => {
+    const pass = document.getElementById("adminPassword").value;
+    if (pass === ADMIN_PASSWORD) {
+      loginPanel.classList.add("hidden");
+      adminPanel.classList.remove("hidden");
+    } else {
+      alert("Contraseña incorrecta");
+    }
+  };
+
+  logoutBtn.onclick = () => {
+    loginPanel.classList.remove("hidden");
+    adminPanel.classList.add("hidden");
+  };
+
+  addProductBtn.onclick = async () => {
+    const name = document.getElementById("productName").value.trim();
+    const price = parseFloat(document.getElementById("productPrice").value);
+    const category = document.getElementById("productCategory").value.trim();
+    const imageInput = document.getElementById("productImage");
+
+    if (!name || isNaN(price) || !category) {
+      alert("Completa todos los campos.");
+      return;
+    }
+
+    let imageData = "";
+    if (imageInput.files[0]) {
+      const file = imageInput.files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        imageData = reader.result;
+        products.push({ name, price, category, image: imageData });
+        saveProducts();
+        renderCategories();
+        renderCatalog();
+        renderAdminProductList();
+      };
+      reader.readAsDataURL(file);
+    } else {
+      products.push({ name, price, category, image: "" });
+      saveProducts();
+      renderCategories();
+      renderCatalog();
+      renderAdminProductList();
+    }
+  };
+
+  function saveProducts() {
+    localStorage.setItem("products", JSON.stringify(products));
+  }
+
+  function renderCategories() {
+    const categories = [...new Set(products.map(p => p.category))];
+    categoryFilter.innerHTML = `<option value="todos">Todas</option>` +
+      categories.map(c => `<option value="${c}">${c}</option>`).join("");
+  }
+
+  function renderCatalog() {
+    const selectedCategory = categoryFilter.value;
+    const filtered = selectedCategory === "todos"
+      ? products
+      : products.filter(p => p.category === selectedCategory);
+
+    catalog.innerHTML = filtered.map((p, i) => `
+      <div class="bg-white p-4 rounded shadow flex flex-col">
+        ${p.image ? `<img src="${p.image}" alt="${p.name}" class="h-40 object-contain mb-2">` : ""}
+        <h3 class="font-bold">${p.name}</h3>
+        <p>$${parseFloat(p.price).toFixed(2)}</p>
+        <button onclick="addToCart(${i})" class="mt-auto bg-blue-500 text-white px-2 py-1 rounded mt-2">Agregar</button>
+      </div>
+    `).join("");
+  }
+
+  window.addToCart = (index) => {
+    cart.push(products[index]);
+    renderCart();
+  };
+
+  function renderCart() {
+    cartList.innerHTML = cart.map(p => `<li>${p.name} - $${parseFloat(p.price).toFixed(2)}</li>`).join("");
+    const total = cart.reduce((sum, p) => sum + parseFloat(p.price), 0);
+    cartTotal.textContent = `Total: $${total.toFixed(2)}`;
+  }
+
+  function renderAdminProductList() {
+    adminProductList.innerHTML = products.map((p, i) => `
+      <li class="flex items-center justify-between border-b py-2">
+        <div>
+          ${p.image ? `<img src="${p.image}" alt="${p.name}" class="h-10 inline-block mr-2">` : ""}
+          <strong>${p.name}</strong> - $${parseFloat(p.price).toFixed(2)} <em>(${p.category})</em>
+        </div>
+        <button data-index="${i}" class="removeProductBtn text-red-600 hover:text-red-800 font-bold">X</button>
+      </li>
+    `).join("");
+
+    document.querySelectorAll(".removeProductBtn").forEach(btn => {
+      btn.onclick = (e) => {
+        const i = parseInt(e.target.getAttribute("data-index"));
+        products.splice(i, 1);
+        saveProducts();
+        renderCategories();
+        renderCatalog();
+        renderAdminProductList();
+      };
+    });
+  }
+
+  categoryFilter.onchange = () => {
+    renderCatalog();
+  };
+
+  document.getElementById("sendWhatsAppBtn").addEventListener("click", () => {
+    if (cart.length === 0) {
+      alert("Tu carrito está vacío.");
+      return;
+    }
+
+    let message = "Hola, quiero hacer un pedido:%0A";
+    cart.forEach(p => {
+      message += `• ${p.name} - $${parseFloat(p.price).toFixed(2)}%0A`;
+    });
+
+    const total = cart.reduce((sum, p) => sum + parseFloat(p.price), 0);
+    message += `%0ATotal: $${total.toFixed(2)}`;
+
+    const phone = "541122806874"; // Tu número sin signos ni espacios
+    const url = `https://wa.me/${phone}?text=${message}`;
+    window.open(url, "_blank");
+  });
+
+  renderCategories();
+  renderCatalog();
+  renderCart();
+  renderAdminProductList();
+
+})();
+  </script>
+
+</body>
+</html>
